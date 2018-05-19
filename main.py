@@ -21,7 +21,7 @@ class Content:
     def convertLatex(self):
         filepath = os.path.join(_MANUSCRIPT_DIR, self.filename+'.md')
         return pypandoc.convert_file( filepath, 'latex', extra_args=[
-                '--data-dir='+os.path.join(os.getcwd(), 'BartelbyMachine', '.pandoc'),
+                '--data-dir='+os.path.join(os.getcwd(), 'BartlebyMachine', '.pandoc'),
                 '--wrap=none',
                 '--variable',
                 'documentclass=book',
@@ -53,7 +53,7 @@ class TableOfContent:
              self.content.append(Content(content))
 
 
-class Bartelby:
+class Bartleby:
 
     def __init__(self):
         self.manuscripts = list(filter(
