@@ -1,8 +1,8 @@
-import os, pypandoc, json
+import os, pypandoc, json, yaml
 from pypandoc.pandoc_download import download_pandoc
 
 _MANUSCRIPT_DIR = os.path.join(os.getcwd(), 'manuscript')
-_LATEX_DIR      = os.path.join(_MANUSCRIPT_DIR, 'latex')
+_LATEX_DIR      = os.path.join(_MANUSCRIPT_DIR, 'tex')
 os.makedirs(_LATEX_DIR, exist_ok=True)
 
 class Content:
@@ -12,10 +12,14 @@ class Content:
     latex = ''
 
     def __init__(self, content):
-      self.title = content['title']
-      self.layout = content['layout']
-      self.filename = content['filename']
-      self.latex = self.convertLatex()
+        for key in content:
+            try:
+                setattr(self, key, content[key])
+            except:
+                print(key)
+
+        self.latex = self.convertLatex()
+        return
 
 
     def convertLatex(self):
@@ -28,26 +32,26 @@ class Content:
         ])
 
     def writeLatex(self):
-        output_path = os.path.join(_MANUSCRIPT_DIR, 'latex', self.filename) + '.tex';
+        output_path = os.path.join(_MANUSCRIPT_DIR, 'tex', self.filename) + '.tex';
 
         f = open(output_path, 'w', encoding='utf-8')
         f.write(self.latex)
         f.close()
 
-        print('{filename} converted tex file written'.format(filename=self.filename))
+        print('%s converted tex file written'%self.filename)
 
 
 class TableOfContent:
 
     title = ''
     author = ''
-    date = ''
+    dateOfPublished = ''
     content = []
 
     def __init__(self, toc):
         self.title = toc['title']
         self.author = toc['author']
-        self.date = toc['date']
+        self.dateOfPublished = toc['dateOfPublished']
 
         for content in toc['content']:
              self.content.append(Content(content))
@@ -55,16 +59,21 @@ class TableOfContent:
 
 class Bartleby:
 
+    toc = None
+    manuscripts = None
+    overcite = None
+    orphan = None
+
     def __init__(self):
         self.manuscripts = list(filter(
             lambda x: os.path.isdir(os.path.join(_MANUSCRIPT_DIR, x)) == False,
             os.listdir(_MANUSCRIPT_DIR)
         ))
-        _LATEX_DIR = os.path.join(_MANUSCRIPT_DIR, 'latex')
+        _LATEX_DIR = os.path.join(_MANUSCRIPT_DIR, 'tex')
         self.toc = [];
 
 
-    def markdowntolatex(self):
+    def markdownToLatex(self):
         result = False
 
         for content in self.toc.content:
@@ -81,19 +90,18 @@ class Bartleby:
             return result
 
         with open(file, encoding='utf-8') as toc_file:
-            toc = json.load(toc_file)
+            toc = yaml.load(toc_file)
             result = True
 
         self.toc = TableOfContent(toc)
 
         return result
 
-
     def manuscriptCount(self):
         result = False
         cite = {}
         entries = []
-        if len(self.toc) < 1:
+        if self.toc == None:
             return result
 
         for toc in self.toc:
@@ -107,11 +115,17 @@ class Bartleby:
         return cite
 
 
-    def findOrphan(self):
-        cite = self.manuscriptCount();
-        return list(filter(lambda x: cite[x] < 1, cite.keys()))
+    def manuscriptStatus(self):
+        self.orphan = []
+        self.overcite = []
 
+        for script in self.manuscripts:
+            cnt = list(
+                map(lambda x: '%s.md'%x.filename, self.toc.content)
+            ).count(script)
+            if(cnt < 1):
+                self.orphan.append(script)
+            if(cnt > 1):
+                self.overcite.append(script)
 
-    def findOverCite(self):
-        cite = self.manuscriptCount();
-        return list(filter(lambda x: cite[x] > 1, cite.keys()))
+        return True
