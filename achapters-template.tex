@@ -1,0 +1,46 @@
+\documentclass[12pt, b6paper, openany]{memoir}
+\usepackage[cm]{fullpage}
+\usepackage[top=1.5cm, bottom=2.2cm, inner=2cm, outer=2.5cm]{geometry}
+\usepackage{titlesec}
+
+\usepackage{kotex}
+\usepackage[breaklinks=true]{hyperref}
+  \hypersetup{colorlinks,%
+    citecolor=blue,%
+    filecolor=blue,%
+    linkcolor=blue,%
+    urlcolor=blue}
+
+\renewcommand{\baselinestretch}{1.3}
+\setsecnumdepth{part}
+\setlength{\beforechapskip}{0pt}
+
+\titleformat{\chapter}{\filright}{}{0pt}{\normalfont\large\bfseries}
+\titlespacing*{\chapter}{0pt}{0pt}{2\baselineskip}
+
+\setlength{\parskip}{1em}
+
+\newenvironment{lyric}{%
+	\setlength{\parindent}{0pt}
+}{}
+\newenvironment{article}{}{}
+
+% set tableofcontent
+\maxtocdepth{chapter}
+
+\author{<<author>>}
+\title{<<title>>}
+\date{<<dateOfPublished>>}
+
+\begin{document}
+	\frontmatter
+		\begin{titlingpage}
+		\maketitle
+		\end{titlingpage}
+		\tableofcontents
+
+	\mainmatter
+<<content>>
+	\appendix
+	\backmatter
+\end{document}
