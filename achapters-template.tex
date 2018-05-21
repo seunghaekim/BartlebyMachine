@@ -20,6 +20,13 @@
 
 \setlength{\parskip}{1em}
 
+\newenvironment{lastnote}{%
+	\clearpage\vspace*{\fill}%
+	\begin{small}
+}{%
+	\end{small}
+}
+
 \newenvironment{lyric}{%
 	\setlength{\parindent}{0pt}
 }{}
@@ -30,7 +37,7 @@
 
 \author{<<author>>}
 \title{<<title>>}
-\date{<<dateOfPublished>>}
+\date{<<date>>}
 
 \begin{document}
 	\frontmatter
@@ -38,9 +45,13 @@
 		\maketitle
 		\end{titlingpage}
 		\tableofcontents
+<<preface>>
 
 	\mainmatter
 <<content>>
 	\appendix
 	\backmatter
+\begin{lastnote}
+<<endpaper>>
+\end{lastnote}
 \end{document}

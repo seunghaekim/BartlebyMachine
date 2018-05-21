@@ -1,50 +1,48 @@
 import os, pypandoc, json, yaml, re
+import datetime
+from .config import Config
 from pypandoc.pandoc_download import download_pandoc
+from pylatex import Itemize, Enumerate, Description, NoEscape
+from pylatex.utils import italic
 
-_MANUSCRIPT_DIR = os.path.join(os.getcwd(), 'manuscript')
-_LATEX_DIR      = os.path.join(_MANUSCRIPT_DIR, 'tex')
-os.makedirs(_LATEX_DIR, exist_ok=True)
-
-
-class Config:
-    config_file = 'config.yaml'
-    template = None
-
-    def __init__(self, config_file):
-        config_file = os.path.join(os.getcwd(), config_file)
-        config = self.readConfig()
-
-        for key in config:
-            if key == 'template':
-                config[key] = os.path.join(os.getcwd(), 'BartlebyMachine', config[key]) + '.tex'
-                f = open(config[key], mode='r', encoding='utf-8')
-                template = f.read()
-                f.close()
-                config[key] = template
-
-            setattr(self, key, config[key])
-
+class Cover:
+    artist  = None
+    title   = None
+    year    = None
+    medium  = None
+    musium  = None
+    location = None
+    # Goya, Francisco. The Family of Charles IV. 1800, oil on canvas, Museo del Prado, Madrid.
+    def __init__(self, cover):
+        for dic in cover:
+            key = list(dic.keys())[0]
+            try:
+                setattr(self, key, dic[key])
+            except:
+                print('error', key)
 
         return
 
-
-    def readConfig(self):
-        result = False
-
-        try:
-            with open(self.config_file, encoding='utf-8') as config:
-                config = yaml.load(config)
-        except:
-            return False
-
-        return config
+    def exportCitation(self):
+        firstname = self.artist.split(' ')[0]
+        lastname = ' '.join(self.artist.split(' ')[1:])
+        name = ', '.join([firstname, lastname])
+        return '{name}. {title}, {year}, {medium}, {musium}, {location}'.format(
+            name    = name,
+            title   = '\\textit{%s}'%self.title,
+            year    = self.year,
+            medium  = self.medium,
+            musium  = self.musium,
+            location= self.location
+        )
 
 
 class Content:
-    title = ''
-    layout = ''
-    filename = ''
-    latex = ''
+    title   = None
+    layout  = None
+    latex   = None
+    type    = 'mainmatter'
+    filename = None
 
     def __init__(self, content):
         for key in content:
@@ -58,7 +56,7 @@ class Content:
 
 
     def convertLatex(self):
-        filepath = os.path.join(_MANUSCRIPT_DIR, self.filename+'.md')
+        filepath = os.path.join(Config().manuscript_dir, self.filename+'.md')
         return pypandoc.convert_file( filepath, 'latex', extra_args=[
                 '--data-dir='+os.path.join(os.getcwd(), 'BartlebyMachine', '.pandoc'),
                 '--wrap=none',
@@ -67,7 +65,7 @@ class Content:
         ])
 
     def writeLatex(self):
-        output_path = os.path.join(_MANUSCRIPT_DIR, 'tex', self.filename) + '.tex';
+        output_path = os.path.join(Config().manuscript_dir, 'tex', self.filename) + '.tex';
 
         f = open(output_path, 'w', encoding='utf-8')
         f.write(self.latex)
@@ -76,26 +74,56 @@ class Content:
 
 class TableOfContent:
 
-    title = ''
-    author = ''
-    dateOfPublished = ''
+    title = None
+    author = None
+    dateOfPublished = None
+    cover = None
     content = []
 
     def __init__(self, toc):
-        self.title = toc['title']
-        self.author = toc['author']
-        self.dateOfPublished = toc['dateOfPublished']
+        for key in toc:
+            try:
+                if(key == 'content'):
+                    content = list(map(lambda x: Content(x), toc[key]))
+                    toc[key] = content
 
-        for content in toc['content']:
-             self.content.append(Content(content))
+                if(key == 'cover'):
+                    toc[key] = Cover(toc[key])
 
-    def contentConcat(self):
+                setattr(self, key, toc[key])
+
+            except:
+                print(key)
+
+
+    def exportContent(self):
         concat = []
         for content in self.content:
-            str = '\\\\begin{{{layout}}}\n{latex}\n\end{{{layout}}}'.format(latex=content.latex.replace('\\\r\n', '\\\\\r\n'), layout=content.layout);
-            concat.append(str)
+            if content.type == 'mainmatter':
+                str = '\\\\begin{{{layout}}}\n{latex}\n\end{{{layout}}}'.format(latex=content.latex.replace('\\\r\n', '\\\\\n'), layout=content.layout);
+                concat.append(str)
 
         return '\n'.join(concat)
+
+
+    def exportPreface(self):
+        prefaces = list(filter(lambda x: x.type == 'preface', self.content))
+        return '\n'.join(list(map(lambda x: x.latex, prefaces)))
+
+
+    def exportEndpaper(self):
+        item = Description()
+        item.add_item('제목', self.title)
+        item.add_item('저자', self.author)
+        item.add_item('편집', '미루')
+        item.add_item('디자인', '써드엔지니어링카르텔')
+        item.add_item('표지', NoEscape(self.cover.exportCitation()))
+        item.add_item('출간일', '2018-06-01')
+        item.add_item('출판', '금치산자레시피')
+        item.add_item('웹사이트', 'https://gtszrcp.github.io')
+        item.add_item('저작권', '이 책에 수록된 저작물 중 별도로 표기되지 않은 모든 저작물은 금치산자레시피와 저자의 자산으로 크리에이티브커먼즈 저작자표시-동일조건변경허락 4.0 국제 라이센스에 의해 이용할 수 있습니다.')
+        item.add_item('이 책은 BartlebyMachine으로 제작되었습니다.')
+        return item.dumps().replace('\\', '\\\\')
 
 
 class Bartleby:
@@ -106,13 +134,11 @@ class Bartleby:
     orphan = None
     config = None
 
-    def __init__(self, Config):
-        self.config = Config
+    def __init__(self):
         self.manuscripts = list(filter(
-            lambda x: os.path.isdir(os.path.join(_MANUSCRIPT_DIR, x)) == False,
-            os.listdir(_MANUSCRIPT_DIR)
+            lambda x: os.path.isdir(os.path.join(Config().manuscript_dir, x)) == False,
+            os.listdir(Config().manuscript_dir)
         ))
-        _LATEX_DIR = os.path.join(_MANUSCRIPT_DIR, 'tex')
         self.toc = [];
 
 
@@ -125,13 +151,15 @@ class Bartleby:
 
 
     def replaceTemplate(self):
-        template = self.config.template
+        template = Config().template
         book = []
         replaces = [
-            (re.compile('<<content>>'), self.toc.contentConcat()),
+            (re.compile('<<content>>'), self.toc.exportContent()),
             (re.compile('<<author>>'), self.toc.author),
             (re.compile('<<title>>'), self.toc.title),
-            (re.compile('<<dateOfPublished>>'), self.toc.dateOfPublished),
+            (re.compile('<<date>>'), datetime.datetime.strptime(self.toc.dateOfPublished, '%Y-%m-%d').strftime('%Y')),
+            (re.compile('<<preface>>'), self.toc.exportPreface()),
+            (re.compile('<<endpaper>>'), self.toc.exportEndpaper()),
         ]
 
         for replace in replaces:
