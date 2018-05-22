@@ -2,8 +2,9 @@ import os, pypandoc, json, yaml, re
 import datetime
 from .config import Config
 from pypandoc.pandoc_download import download_pandoc
-from pylatex import Itemize, Enumerate, Description, NoEscape
-from pylatex.utils import italic
+from pylatex import Document, Description
+from pylatex.section import Chapter
+from pylatex.utils import *
 
 class Cover:
     artist  = None
@@ -12,6 +13,7 @@ class Cover:
     medium  = None
     musium  = None
     location = None
+    license = None
     # Goya, Francisco. The Family of Charles IV. 1800, oil on canvas, Museo del Prado, Madrid.
     def __init__(self, cover):
         for dic in cover:
@@ -43,6 +45,7 @@ class Content:
     latex   = None
     type    = 'mainmatter'
     filename = None
+    endnote = None
 
     def __init__(self, content):
         for key in content:
@@ -74,10 +77,11 @@ class Content:
 
 class TableOfContent:
 
-    title = None
-    author = None
+    title   = None
+    author  = None
     dateOfPublished = None
-    cover = None
+    cover   = None
+    license = None
     content = []
 
     def __init__(self, toc):
@@ -112,18 +116,42 @@ class TableOfContent:
 
 
     def exportEndpaper(self):
-        item = Description()
-        item.add_item('제목', self.title)
-        item.add_item('저자', self.author)
-        item.add_item('편집', '미루')
-        item.add_item('디자인', '써드엔지니어링카르텔')
-        item.add_item('표지', NoEscape(self.cover.exportCitation()))
-        item.add_item('출간일', '2018-06-01')
-        item.add_item('출판', '금치산자레시피')
-        item.add_item('웹사이트', 'https://gtszrcp.github.io')
-        item.add_item('저작권', '이 책에 수록된 저작물 중 별도로 표기되지 않은 모든 저작물은 금치산자레시피와 저자의 자산으로 크리에이티브커먼즈 저작자표시-동일조건변경허락 4.0 국제 라이센스에 의해 이용할 수 있습니다.')
-        item.add_item('이 책은 BartlebyMachine으로 제작되었습니다.')
-        return item.dumps().replace('\\', '\\\\')
+        options = ['itemsep=1pt', 'parsep=1pt']
+        book = Description(options=options)
+        book.add_item('제목', self.title)
+        book.add_item('저자', self.author)
+        book.add_item('편집', '미루')
+        book.add_item('디자인', '써드엔지니어링카르텔')
+        book.add_item('출간일', '2018-06-01')
+
+        publisher = Description(options=options)
+        publisher.add_item('출판', '금치산자레시피')
+        publisher.add_item('웹사이트', 'https://gtszrcp.github.io')
+
+        cover = Description(options=options)
+        cover.add_item('표지', NoEscape(self.cover.exportCitation()))
+        cover.add_item('표지 그림 저작권', self.cover.license)
+
+        license = Description(options=options)
+        license.add_item('저작권', NoEscape('이 책에 수록된 저작물 중 별도로 표기되지 않은 모든 저작물의 저작권은 저자에게 있습니다. %s에 의해 이용할 수 있습니다.'%italic(self.license)))
+        license.add_item('', '이 책은 BartlebyMachine으로 제작되었습니다.')
+
+        endpaper = map(lambda x: x.dumps().replace('\\', '\\\\'), [
+            book, publisher, cover, license
+        ])
+        return '\n'.join(list(endpaper))
+
+    def exportAppendix(self):
+        appendix = []
+        appendix.append(Chapter('참조'))
+        content = Description()
+        endnotes = list(filter(lambda x: x.endnote != None, self.content))
+        for note in endnotes:
+            content.add_item(note.title, note.endnote)
+
+        appendix.append(content)
+        appendix = list(map(lambda x: x.dumps().replace('\\', '\\\\'), appendix))
+        return '\n'.join(appendix)
 
 
 class Bartleby:
@@ -160,6 +188,7 @@ class Bartleby:
             (re.compile('<<date>>'), datetime.datetime.strptime(self.toc.dateOfPublished, '%Y-%m-%d').strftime('%Y')),
             (re.compile('<<preface>>'), self.toc.exportPreface()),
             (re.compile('<<endpaper>>'), self.toc.exportEndpaper()),
+            (re.compile('<<endnotes>>'), self.toc.exportAppendix()),
         ]
 
         for replace in replaces:
