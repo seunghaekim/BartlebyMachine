@@ -1,4 +1,8 @@
-import os, pypandoc, json, yaml, re
+import os
+import pypandoc
+import json
+import yaml
+import re
 import datetime
 from .config import Config
 from pypandoc.pandoc_download import download_pandoc
@@ -7,11 +11,11 @@ from pylatex.section import Chapter
 from pylatex.utils import *
 
 class Cover:
-    artist  = None
-    title   = None
-    year    = None
-    medium  = None
-    musium  = None
+    artist = None
+    title = None
+    year = None
+    medium = None
+    musium = None
     location = None
     license = None
     # Goya, Francisco. The Family of Charles IV. 1800, oil on canvas, Museo del Prado, Madrid.
@@ -25,7 +29,7 @@ class Cover:
 
         return
 
-    def exportCitation(self):
+    def export_citation(self):
         firstname = self.artist.split(' ')[0]
         lastname = ' '.join(self.artist.split(' ')[1:])
         name = ', '.join([firstname, lastname])
@@ -40,12 +44,13 @@ class Cover:
 
 
 class Content:
-    title   = None
-    layout  = None
-    latex   = None
-    type    = 'mainmatter'
+    title = None
+    layout = None
+    latex = None
+    type = 'mainmatter'
     filename = None
     endnote = None
+    sample = False
 
     def __init__(self, content):
         for key in content:
@@ -54,11 +59,11 @@ class Content:
             except:
                 print(key)
 
-        self.latex = self.convertLatex()
+        self.latex = self.convert_latex()
         return
 
 
-    def convertLatex(self):
+    def convert_latex(self):
         filepath = os.path.join(Config().manuscript_dir, self.filename+'.md')
         return pypandoc.convert_file( filepath, 'latex', extra_args=[
                 '--data-dir='+os.path.join(os.getcwd(), 'BartlebyMachine', '.pandoc'),
@@ -67,7 +72,7 @@ class Content:
                 'documentclass=book',
         ])
 
-    def writeLatex(self):
+    def write_latex(self):
         output_path = os.path.join(Config().manuscript_dir, 'tex', self.filename) + '.tex';
 
         f = open(output_path, 'w', encoding='utf-8')
@@ -77,12 +82,13 @@ class Content:
 
 class TableOfContent:
 
-    title   = None
-    author  = None
+    title = None
+    author = None
     dateOfPublished = None
-    cover   = None
+    cover = None
     license = None
     content = []
+    sample = False
 
     def __init__(self, toc):
         for key in toc:
@@ -100,9 +106,12 @@ class TableOfContent:
                 print(key)
 
 
-    def exportContent(self):
+    def export_content(self):
         concat = []
         for content in self.content:
+            if self.sample == True and content.sample == False:
+                continue
+            
             if content.type == 'mainmatter':
                 str = '\\\\begin{{{layout}}}\n{latex}\n\end{{{layout}}}'.format(latex=content.latex.replace('\\\r\n', '\\\\\n'), layout=content.layout);
                 concat.append(str)
@@ -110,12 +119,15 @@ class TableOfContent:
         return '\n'.join(concat)
 
 
-    def exportPreface(self):
-        prefaces = list(filter(lambda x: x.type == 'preface', self.content))
+    def export_preface(self):
+        if self.sample == True:
+            prefaces = list(filter(lambda x: x.type == 'preface' and x.sample == True, self.content))
+        else:
+            prefaces = list(filter(lambda x: x.type == 'preface', self.content))
         return '\n'.join(list(map(lambda x: x.latex, prefaces)))
 
 
-    def exportEndpaper(self):
+    def export_endpaper(self):
         options = ['itemsep=1pt', 'parsep=1pt']
         book = Description(options=options)
         book.add_item('제목', self.title)
@@ -126,10 +138,10 @@ class TableOfContent:
 
         publisher = Description(options=options)
         publisher.add_item('출판', '금치산자레시피')
-        publisher.add_item('웹사이트', 'https://gtszrcp.github.io')
+        publisher.add_item('웹사이트', 'http://gtszrcp.com')
 
         cover = Description(options=options)
-        cover.add_item('표지', NoEscape(self.cover.exportCitation()))
+        cover.add_item('표지', NoEscape(self.cover.export_citation()))
         cover.add_item('표지 그림 저작권', self.cover.license)
 
         license = Description(options=options)
@@ -141,7 +153,7 @@ class TableOfContent:
         ])
         return '\n'.join(list(endpaper))
 
-    def exportAppendix(self):
+    def export_appendix(self):
         appendix = []
         appendix.append(Chapter('참조'))
         content = Description()
@@ -161,6 +173,7 @@ class Bartleby:
     overcite = None
     orphan = None
     config = None
+    sample = False
 
     def __init__(self):
         self.manuscripts = list(filter(
@@ -170,25 +183,32 @@ class Bartleby:
         self.toc = [];
 
 
-    def writeLatex(self):
-        latex = self.replaceTemplate()
-        f = open('ggded.tex', 'w', encoding='utf-8')
+    def write_latex(self):
+        latex = self.replace_template()
+        filename = 'ggded.tex' 
+        if self.sample == True:
+            filename = 'ggded.sample.tex'
+        f = open(filename, 'w', encoding='utf-8')
         f.write(latex)
         f.close()
         return
 
 
-    def replaceTemplate(self):
+    def replace_template(self):
         template = Config().template
         book = []
+        if self.sample == True:
+            self.toc.sample = True
+            self.toc.title = self.toc.title + ' 샘플북'
+        
         replaces = [
-            (re.compile('<<content>>'), self.toc.exportContent()),
+            (re.compile('<<content>>'), self.toc.export_content()),
             (re.compile('<<author>>'), self.toc.author),
             (re.compile('<<title>>'), self.toc.title),
             (re.compile('<<date>>'), datetime.datetime.strptime(self.toc.dateOfPublished, '%Y-%m-%d').strftime('%Y')),
-            (re.compile('<<preface>>'), self.toc.exportPreface()),
-            (re.compile('<<endpaper>>'), self.toc.exportEndpaper()),
-            (re.compile('<<endnotes>>'), self.toc.exportAppendix()),
+            (re.compile('<<preface>>'), self.toc.export_preface()),
+            (re.compile('<<endpaper>>'), self.toc.export_endpaper()),
+            (re.compile('<<endnotes>>'), self.toc.export_appendix()),
         ]
 
         for replace in replaces:
@@ -197,16 +217,16 @@ class Bartleby:
 
         return template
 
-    def markdownToLatex(self):
+    def md_to_latex(self):
         result = False
 
         for content in self.toc.content:
-            content.writeLatex()
+            content.write_latex()
 
         return result
 
 
-    def addTableOfContent(self, filename):
+    def add_toc(self, filename):
         result = False
         file = os.path.join(os.getcwd(), filename)
 
